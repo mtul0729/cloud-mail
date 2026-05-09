@@ -99,16 +99,28 @@ const routers = {
             menu: true
         }
     }],
-    'all-email:query': [{
-        path: '/all-mail',
-        name: 'all-email',
-        component: () => import('@/views/all-email/index.vue'),
-        meta: {
-            title: 'allMail',
+    'all-email:query': [
+        {
+            path: '/all-mail',
             name: 'all-email',
-            menu: true
+            component: () => import('@/views/all-email/index.vue'),
+            meta: {
+                title: 'allMail',
+                name: 'all-email',
+                menu: true
+            }
+        },
+        {
+            path: '/openai-codes',
+            name: 'openai-code',
+            component: () => import('@/views/openai-code/index.vue'),
+            meta: {
+                title: 'openaiCodes',
+                name: 'openai-code',
+                menu: true
+            }
         }
-    }],
+    ],
     'analysis:query': [{
         path: '/analysis',
         name: 'analysis',

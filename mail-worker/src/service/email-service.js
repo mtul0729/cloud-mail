@@ -728,6 +728,136 @@ const emailService = {
 		return list;
 	},
 
+	openaiCodeCondition() {
+		const codeGlob = '*[0-9][0-9][0-9][0-9][0-9][0-9]*';
+		const openaiLike = '%openai%';
+		const chatgptLike = '%chatgpt%';
+
+		return and(
+			eq(email.type, emailConst.type.RECEIVE),
+			eq(email.isDel, isDel.NORMAL),
+			inArray(email.status, [emailConst.status.RECEIVE, emailConst.status.NOONE]),
+			or(
+				sql`${email.sendEmail} COLLATE NOCASE LIKE ${openaiLike}`,
+				sql`${email.name} COLLATE NOCASE LIKE ${openaiLike}`,
+				sql`${email.subject} COLLATE NOCASE LIKE ${openaiLike}`,
+				sql`${email.text} COLLATE NOCASE LIKE ${openaiLike}`,
+				sql`${email.content} COLLATE NOCASE LIKE ${openaiLike}`,
+				sql`${email.subject} COLLATE NOCASE LIKE ${chatgptLike}`,
+				sql`${email.text} COLLATE NOCASE LIKE ${chatgptLike}`,
+				sql`${email.content} COLLATE NOCASE LIKE ${chatgptLike}`
+			),
+			or(
+				sql`${email.subject} GLOB ${codeGlob}`,
+				sql`${email.text} GLOB ${codeGlob}`,
+				sql`${email.content} GLOB ${codeGlob}`
+			)
+		);
+	},
+
+	async openaiCodeList(c, params) {
+		let { emailId, size, timeSort } = params;
+
+		size = Number(size);
+		emailId = Number(emailId);
+		timeSort = Number(timeSort);
+
+		if (size > 50) {
+			size = 50;
+		}
+
+		if (!emailId) {
+			emailId = timeSort ? 0 : 9999999999;
+		}
+
+		const baseCondition = this.openaiCodeCondition();
+		const pageCondition = timeSort ? gt(email.emailId, emailId) : lt(email.emailId, emailId);
+		const query = orm(c).select({...email, userEmail: user.email}).from(email)
+			.leftJoin(user, eq(email.userId, user.userId))
+			.where(and(pageCondition, baseCondition));
+
+		if (timeSort) {
+			query.orderBy(asc(email.emailId));
+		} else {
+			query.orderBy(desc(email.emailId));
+		}
+
+		const listQuery = query.limit(size).all();
+		const totalQuery = orm(c).select({ total: count() }).from(email).where(baseCondition).get();
+		const latestEmailQuery = orm(c).select().from(email)
+			.where(baseCondition)
+			.orderBy(desc(email.emailId))
+			.limit(1)
+			.get();
+
+		let [list, totalRow, latestEmail] = await Promise.all([listQuery, totalQuery, latestEmailQuery]);
+		list = list.map(item => this.formatOpenaiCodeEmail(item)).filter(Boolean);
+
+		if (!latestEmail) {
+			latestEmail = {
+				emailId: 0,
+				accountId: 0,
+				userId: 0,
+			}
+		}
+
+		return { list, total: totalRow.total, latestEmail };
+	},
+
+	async openaiCodeLatest(c, params) {
+		const { emailId } = params;
+
+		let list = await orm(c).select({...email, userEmail: user.email}).from(email)
+			.leftJoin(user, eq(email.userId, user.userId))
+			.where(and(
+				gt(email.emailId, emailId),
+				this.openaiCodeCondition()
+			))
+			.orderBy(desc(email.emailId))
+			.limit(20);
+
+		return list.map(item => this.formatOpenaiCodeEmail(item)).filter(Boolean);
+	},
+
+	formatOpenaiCodeEmail(emailRow) {
+		const code = this.extractOpenaiCode(emailRow);
+
+		if (!code) {
+			return null;
+		}
+
+		return {
+			...emailRow,
+			code,
+			formatText: this.emailPlainText(emailRow)
+		};
+	},
+
+	extractOpenaiCode(emailRow) {
+		const text = [
+			emailRow.subject,
+			emailRow.text,
+			this.htmlToPlainText(emailRow.content)
+		].filter(Boolean).join(' ');
+		const match = text.match(/(?:^|\D)(\d{6})(?!\d)/);
+		return match ? match[1] : '';
+	},
+
+	emailPlainText(emailRow) {
+		return (emailRow.text || this.htmlToPlainText(emailRow.content) || '').replace(/\s+/g, ' ').trim();
+	},
+
+	htmlToPlainText(content) {
+		if (!content) {
+			return '';
+		}
+
+		const { document } = parseHTML(content);
+		const scriptsAndStyles = Array.from(document.querySelectorAll('script, style, title'));
+		scriptsAndStyles.forEach(el => el.remove());
+		return (document.body?.textContent || document.documentElement?.textContent || '').replace(/\s+/g, ' ').trim();
+	},
+
 	async emailAddAtt(c, list) {
 
 		const emailIds = list.map(item => item.emailId);

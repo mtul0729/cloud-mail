@@ -14,6 +14,7 @@ import '../api/user-api';
 import '../api/my-api';
 import '../api/role-api'
 import '../api/all-email-api'
+import '../api/openai-code-api'
 import '../api/init-api'
 import '../api/analysis-api'
 import '../api/reg-key-api'
