@@ -7,7 +7,7 @@ import kvObjService from './service/kv-obj-service';
 import oauthService from './service/oauth-service';
 import analysisService from './service/analysis-service';
 export default {
-	 async fetch(req, env, ctx) {
+	async fetch(req, env, ctx) {
 
 		const url = new URL(req.url)
 
